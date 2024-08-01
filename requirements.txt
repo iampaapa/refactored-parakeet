@@ -1,0 +1,6 @@
+numpy
+matplotlib
+tensorflow
+tensorflow_probability
+tf_keras
+pyserial
