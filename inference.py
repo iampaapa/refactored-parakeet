@@ -38,6 +38,7 @@ def inference(state):
         # Get action from the model
         action = agent.get_action(tf.expand_dims(state, 0))
         
+        
         # Convert action from [-1, 1] to [0, 180] for servo angles
         new_angles = (action + 1) * 90
         
