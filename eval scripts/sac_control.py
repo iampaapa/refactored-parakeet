@@ -10,7 +10,7 @@ import os
 
 # Configure the serial connection
 ser = serial.Serial(
-    port='/dev/ttyACM0',  # Update this to the correct port for your Pi
+    port='/dev/cu.usbmodem11201',  # Update this to the correct port for your Pi
     baudrate=9600,
     timeout=1
 )
