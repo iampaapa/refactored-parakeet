@@ -154,7 +154,8 @@ def sac_evaluation(duration_minutes):
 
 if __name__ == "__main__":
     try:
-        duration = int(input("Enter the duration for SAC evaluation (in minutes): "))
+        duration = input("Enter the duration for SAC evaluation (in minutes): ")
+        print(duration)
         sac_evaluation(duration)
     except ValueError:
         logging.error("[ERROR] Invalid input for duration. Please enter an integer.")

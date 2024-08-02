@@ -16,6 +16,8 @@ ser = serial.Serial(
 logging.basicConfig(filename='light_chasing.log', level=logging.DEBUG,
                     format='%(asctime)s - %(levelname)s - %(message)s')
 
+current_pos = [90, 90]  # Starting position for servos
+
 def read_serial():
     try:
         if ser.in_waiting > 0:
@@ -31,18 +33,20 @@ def send_command(command):
         response = read_serial()
         if response:
             logging.info(f"[INFO] Response: {response}")
+            return response
         else:
             logging.warning("[WARNING] No response or timeout.")
     except Exception as e:
         logging.error(f"[ERROR] Error writing to serial port: {str(e)}")
 
 def get_sensor_data():
-    send_command("2000")
-    data = read_serial()
+    data = send_command("2000")
+    # data = read_serial()
     if data:
         try:
             values = list(map(float, data.split(',')))
-            if len(values) == 7:
+            if len(values) == 9:
+
                 return values
         except ValueError:
             logging.error(f"[ERROR] Invalid data format: {data}")
@@ -52,19 +56,38 @@ def move_servos(pos1, pos2):
     command = f"1000{pos1},{pos2}>"
     send_command(command)
 
+def normalize_readings(readings):
+    minResistance = [34, 37, 0, 60]
+    maxResistance = [990, 992, 1006, 1009]
+    normalizedValues = [(readings[i] - minResistance[i]) / (maxResistance[i] - minResistance[i]) * 100 for i in range(4)]
+    return normalizedValues
+
 def chase_light(ldr_values):
-    # Simple light chasing algorithm
-    # Adjust these thresholds based on your specific setup
-    threshold = 10
-    step = 5
+    global current_pos
+    postop, posbase = current_pos
+    step = 1
 
-    horizontal_diff = (ldr_values[0] + ldr_values[1]) - (ldr_values[2] + ldr_values[3])
-    vertical_diff = (ldr_values[0] + ldr_values[2]) - (ldr_values[1] + ldr_values[3])
+    if ldr_values[0] > ldr_values[3]:
+        postop += step
+    if ldr_values[2] > ldr_values[1]:
+        postop += step
+    if ldr_values[3] > ldr_values[0]:
+        postop -= step
+    if ldr_values[1] > ldr_values[2]:
+        postop -= step
+    if ldr_values[0] > ldr_values[2]:
+        posbase -= step
+    if ldr_values[3] > ldr_values[1]:
+        posbase -= step
+    if ldr_values[1] > ldr_values[3]:
+        posbase += step
+    if ldr_values[2] > ldr_values[0]:
+        posbase += step
 
-    new_pos1 = max(0, min(180, current_pos[0] + (step if horizontal_diff > threshold else -step if horizontal_diff < -threshold else 0)))
-    new_pos2 = max(0, min(180, current_pos[1] + (step if vertical_diff > threshold else -step if vertical_diff < -threshold else 0)))
+    postop = max(0, min(180, postop))
+    posbase = max(0, min(180, posbase))
 
-    return new_pos1, new_pos2
+    return postop, posbase
 
 def save_to_csv(data):
     try:
@@ -93,27 +116,30 @@ def light_chasing_control(duration_minutes):
     times = []
     powers = []
     total_power = 0
+    
+    print("Starting light chasing mode...")
 
     try:
+        # Activate light chasing mode
+        send_command("3333")
+        
         while datetime.now() < end_time:
             data = get_sensor_data()
             if data:
-                ldr_values = data[:4]
-                power = data[6]
+                # Extract power and LDR readings
+                power = data[2]
+                ldr_readings = data[-4:]
+                
+                # Append to totals and lists
                 total_power += power
-                
-                new_pos = chase_light(ldr_values)
-                move_servos(*new_pos)
-                current_pos = new_pos
-
-                save_to_csv(data + list(current_pos))
-                
-                current_time = datetime.now()
-                times.append(current_time)
+                times.append(datetime.now())
                 powers.append(power)
                 
-                logging.info(f"[DATA] Time: {current_time}, LDR: {ldr_values}, Power: {power}, Position: {current_pos}")
-            
+                # Save to CSV with current position
+                save_to_csv(data + list(current_pos))
+                
+                logging.info(f"[DATA] Time: {times[-1]}, LDR: {ldr_readings}, Power: {power}, Position: {current_pos}")
+
             time.sleep(1)  # Adjust this delay as needed
 
     except KeyboardInterrupt:
